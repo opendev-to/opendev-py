@@ -1,0 +1,178 @@
+> **This project has been retired.** This is the original Python implementation of OpenDev.
+> It is no longer actively maintained. The project has been fully rewritten in Rust.
+> See the active version at: https://github.com/opendev-to/opendev
+
+---
+
+<p align="center">
+  <img src="logo/logo_long.png" alt="OpenDev Logo" width="400"/>
+</p>
+
+<p align="center">Open-source AI coding agent that spawns parallel agents, each bound to the LLM of your choice.</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/opendev/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/opendev?style=flat-square" /></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" /></a>
+  <a href="https://python.org/"><img alt="Python version" src="https://img.shields.io/badge/python-%3E%3D3.10-blue.svg?style=flat-square" /></a>
+  <a href="https://arxiv.org/pdf/2603.05344"><img alt="Technical Report" src="https://img.shields.io/badge/Technical%20Report-arXiv-b31b1b.svg?style=flat-square" /></a>
+</p>
+
+<p align="center">
+  🌐 <b>Website & Docs are coming soon — stay tuned!</b> 🚀
+</p>
+
+<p align="center">
+  <img src="figures/introduction.png" alt="OpenDev Introduction" width="800"/>
+</p>
+
+---
+
+### Introduction
+
+OpenDev is an open-source, terminal-native coding agent built as a compound AI system. Instead of a single monolithic LLM, it uses a structured ensemble of agents and workflows — each independently bound to a user-configured model.
+
+Work is organized into concurrent sessions composed of specialized sub-agents. Each agent executes typed workflows (Execution, Thinking, Compaction) that independently bind to an LLM, enabling fine-grained cost, latency, and capability trade-offs per workflow.
+
+Each workflow is a modular slot you can bind to any LLM of your choice: **Normal** (execution), **Thinking** (reasoning), **Compact** (context summarization), **Self-Critique** (output verification), and **VLM** (vision). For example, use Claude Opus for execution, GPT-o3 for thinking, and a lightweight Qwen model for compaction. Together, these combinations form a compound AI system where multiple models collaborate, each optimized for its role.
+
+OpenDev is currently written in **Python**, with a planned rewrite in **Rust** in the near future.
+
+
+<p align="center">
+  <img src="figures/top.png" alt="OpenDev Compound AI Architecture" width="700"/>
+</p>
+
+
+---
+
+### Why OpenDev?
+
+- 🤖 **Proactive, not reactive.** OpenDev can plan, execute, and iterate autonomously. Kick off a refactoring, walk away, and come back to a PR ready for review.
+- 🔀 **Multi-provider, multi-model.** Assign different models from different providers to every workflow and session, all running in parallel. Your models, your rules.
+- 💻 **TUI + Web UI.** A full terminal UI for power users and a Web UI for visual monitoring. The Web UI supports remote sessions, so you can start a task from your phone and let OpenDev work while you sleep. 🛏️📱
+
+---
+
+### Installation
+
+```bash
+# With uv (recommended)
+uv pip install opendev
+
+# With pip
+pip install opendev
+```
+
+### Quick Start
+
+```bash
+# Set an API key (OpenAI, Anthropic, or Fireworks — any one will do)
+export OPENAI_API_KEY="sk-..."
+# export ANTHROPIC_API_KEY="sk-ant-..."
+# export FIREWORKS_API_KEY="fw_..."
+
+# Start the interactive TUI
+opendev
+
+# Or start the Web UI
+opendev run ui
+
+# Single prompt (non-interactive)
+opendev -p "explain this codebase"
+
+# Resume most recent session
+opendev --continue
+```
+
+Prefer a guided walkthrough? Run `opendev config setup` to interactively choose providers, models, and workflow bindings.
+
+See the [Provider Setup Guide](docs/providers.md) for all 9 supported providers, authentication details, and advanced configuration.
+
+<p align="center">
+  <img src="figures/web_ui.png" alt="OpenDev Web UI" width="800"/>
+</p>
+
+### Multi-Provider Support
+
+OpenDev supports 9 LLM providers: **OpenAI**, **Anthropic**, **Fireworks**, **Google**, **Groq**, **Mistral**, **DeepInfra**, **OpenRouter**, and **Azure OpenAI**.
+
+Each provider's models can be independently assigned to 5 workflow slots:
+
+- **Normal** -- Primary execution model for coding tasks and tool calls
+- **Thinking** -- Complex reasoning and planning (falls back to Normal)
+- **Compact** -- Context summarization when history grows long (falls back to Normal)
+- **Critique** -- Self-critique of agent reasoning (falls back to Thinking)
+- **VLM** -- Vision/image processing (falls back to Normal if it supports vision)
+
+Mix and match providers per slot in `~/.opendev/settings.json`:
+
+```json
+{
+  "model_provider": "anthropic",
+  "model": "claude-sonnet-4-20250514",
+  "model_thinking_provider": "openai",
+  "model_thinking": "o3"
+}
+```
+
+See the [Provider Setup Guide](docs/providers.md) for the full list of env vars, fallback chains, and configuration options.
+
+### MCP Integration
+
+Dynamic tool discovery via the Model Context Protocol for connecting to external tools and data sources.
+
+```bash
+opendev mcp list
+opendev mcp add myserver uvx mcp-server-sqlite
+opendev mcp enable/disable myserver
+```
+
+### Development
+
+```bash
+git clone https://github.com/opendev-to/opendev.git
+cd opendev
+make install
+source .venv/bin/activate
+```
+
+A `Makefile` provides shortcuts for all common tasks:
+
+```bash
+make check        # Format (Black) + lint (Ruff) + type-check (mypy)
+make test         # Run all tests
+make test-cov     # Run tests with coverage report
+make install-ui   # Install Web UI npm dependencies
+make build-ui     # Install dependencies and build the Web UI frontend
+make help         # List all available targets
+```
+
+> **Web UI:** `make build-ui` automatically runs `npm ci` before building, so you don't need to run `make install-ui` separately unless you only want to install dependencies without building.
+
+### Contributing
+
+If you're interested in contributing to OpenDev, please open an issue or submit a pull request.
+
+---
+
+### How OpenDev Compares
+
+- **vs. Claude Code / Codex CLI / Gemini CLI:** Closed-source tools that lock you into a single provider. OpenDev is fully open source and lets you mix models from any provider, independently bound per workflow (execution, thinking, critique, compaction, vision).
+- **vs. OpenCode:** OpenCode is a great open-source coding agent with TUI, Web UI, and LSP support. However, its architecture is not modular enough to support per-workflow model binding, concurrent multi-agent sessions, or compound AI orchestration.
+- **vs. OpenClaw:** OpenDev and OpenClaw share similar concepts around autonomous AI agents. The key difference is focus: OpenDev is purpose-built for the software development lifecycle, with context engineering, structured agent workflows, and deep code understanding.
+
+📋 See the [Roadmap](./ROADMAP.md) for what's shipped, in progress, and planned.
+
+---
+
+### Star History
+
+<p align="center">
+  <a href="https://star-history.com/#opendev-to/opendev&Date">
+   <picture>
+     <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=opendev-to/opendev&type=Date&theme=dark" />
+     <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=opendev-to/opendev&type=Date" />
+     <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=opendev-to/opendev&type=Date" />
+   </picture>
+  </a>
+</p>

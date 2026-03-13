@@ -2,6 +2,8 @@
   <img src="logo/logo_long.png" alt="OpenDev Logo" width="400"/>
 </p>
 
+> **Note:** This Python version is no longer actively maintained and is kept for reference only. The main version of OpenDev is now written in Rust: [https://github.com/opendev-to/opendev](https://github.com/opendev-to/opendev)
+
 <p align="center">Open-source AI coding agent that spawns parallel agents, each bound to the LLM of your choice.</p>
 
 <p align="center">

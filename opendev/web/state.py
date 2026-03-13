@@ -1,0 +1,509 @@
+"""Shared state manager for web UI and terminal REPL."""
+
+from __future__ import annotations
+
+import asyncio
+import queue as queue_mod
+import threading
+from typing import Any, Callable, Dict, List, Optional
+from threading import Lock
+
+from opendev.core.runtime import ConfigManager, ModeManager
+from opendev.core.context_engineering.history import SessionManager, UndoManager
+from opendev.core.runtime.approval import ApprovalManager
+from opendev.core.auth.user_store import UserStore
+from opendev.models.user import User
+from opendev.models.message import ChatMessage
+
+
+# Type imports
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from opendev.core.context_engineering.mcp.manager import MCPManager
+
+
+class WebState:
+    """Shared state between CLI and web UI.
+
+    This class maintains a single source of truth for:
+    - Current session
+    - Configuration
+    - Message history
+    - Agent state
+
+    Thread-safe for concurrent access from REPL and web server.
+    """
+
+    def __init__(
+        self,
+        config_manager: ConfigManager,
+        session_manager: SessionManager,
+        mode_manager: ModeManager,
+        approval_manager: ApprovalManager,
+        undo_manager: UndoManager,
+        user_store: UserStore,
+        mcp_manager: Optional["MCPManager"] = None,
+    ) -> None:
+        """Initialize state with required managers."""
+
+        self.config_manager = config_manager
+        self.session_manager = session_manager
+        self.mode_manager = mode_manager
+        self.approval_manager = approval_manager
+        self.undo_manager = undo_manager
+        self.user_store = user_store
+        self.mcp_manager = mcp_manager
+        self._current_users: Dict[str, User] = {}
+        self._lock = Lock()
+
+        # Connected WebSocket clients
+        self._ws_clients: List[Any] = []
+
+        # Pending approval requests
+        self._pending_approvals: Dict[str, Dict[str, Any]] = {}
+
+        # Interrupt flag for stopping ongoing tasks
+        self._interrupt_requested = False
+
+        # Autonomy level for approval management
+        self._autonomy_level: str = "Manual"
+
+        # Pending ask-user requests
+        self._pending_ask_users: Dict[str, Dict[str, Any]] = {}
+
+        # Thinking level (matches TUI: Off, Low, Medium, High)
+        self._thinking_level: str = "Medium"
+
+        # Pending plan approval requests
+        self._pending_plan_approvals: Dict[str, Dict[str, Any]] = {}
+
+        # Running sessions: session_id -> "running"
+        self._running_sessions: Dict[str, str] = {}
+
+        # Live message injection queues: session_id -> Queue
+        self._injection_queues: Dict[str, queue_mod.Queue[str]] = {}
+
+        # Bridge mode: TUI injects messages via this callable
+        self.tui_message_injector: Optional[Callable[[str, str], None]] = None
+
+        # WebSocket manager and event loop (set by websocket/server startup)
+        self.ws_manager: Optional[Any] = None
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+
+        # Agent executor (lazily created by websocket handler)
+        self._agent_executor: Optional[Any] = None
+
+    def add_ws_client(self, client: Any) -> None:
+        """Add a WebSocket client."""
+        with self._lock:
+            if client not in self._ws_clients:
+                self._ws_clients.append(client)
+
+    def remove_ws_client(self, client: Any) -> None:
+        """Remove a WebSocket client."""
+        with self._lock:
+            if client in self._ws_clients:
+                self._ws_clients.remove(client)
+
+    def get_ws_clients(self) -> List[Any]:
+        """Get all connected WebSocket clients."""
+        with self._lock:
+            return self._ws_clients.copy()
+
+    def get_messages(self) -> List[ChatMessage]:
+        """Get current session messages."""
+        session = self.session_manager.get_current_session()
+        if session:
+            return session.messages
+        return []
+
+    def add_message(self, message: ChatMessage) -> None:
+        """Add a message to current session."""
+        self.session_manager.add_message(message)
+
+    def get_current_session_id(self) -> Optional[str]:
+        """Get current session ID."""
+        session = self.session_manager.get_current_session()
+        return session.id if session else None
+
+    def resume_session(self, session_id: str, owner_id: str) -> bool:
+        """Resume the given session if owned by the user or unowned."""
+        try:
+            session = self.session_manager.load_session(session_id, owner_id=owner_id)
+        except FileNotFoundError:
+            return False
+        if session.owner_id is not None and session.owner_id != owner_id:
+            return False
+        return True
+
+    def list_sessions(self, owner_id: str) -> List[Dict[str, Any]]:
+        """List sessions owned by the user or unowned (TUI-created) across all workspaces."""
+        sessions = []
+        for session_meta in self.session_manager.list_all_sessions(
+            owner_id=owner_id, include_unowned=True
+        ):
+            sessions.append(
+                {
+                    "id": session_meta.id,
+                    "working_dir": session_meta.working_directory or "",
+                    "created_at": session_meta.created_at.isoformat(),
+                    "updated_at": session_meta.updated_at.isoformat(),
+                    "message_count": session_meta.message_count,
+                    "total_tokens": session_meta.total_tokens,
+                    "title": session_meta.title,
+                    "has_session_model": session_meta.has_session_model,
+                    "channel": session_meta.channel,
+                    "channel_user_id": session_meta.channel_user_id,
+                    "thread_id": session_meta.thread_id,
+                }
+            )
+        return sessions
+
+    def add_pending_approval(
+        self,
+        approval_id: str,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        session_id: Optional[str] = None,
+        event: Optional[threading.Event] = None,
+    ) -> None:
+        """Add a pending approval request."""
+        with self._lock:
+            self._pending_approvals[approval_id] = {
+                "tool_name": tool_name,
+                "arguments": arguments,
+                "resolved": False,
+                "approved": None,
+                "session_id": session_id,
+                "_event": event,
+            }
+
+    def resolve_approval(
+        self, approval_id: str, approved: bool, auto_approve: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve a pending approval request. Returns approval data or None."""
+        with self._lock:
+            if approval_id in self._pending_approvals:
+                approval = self._pending_approvals[approval_id]
+                approval["resolved"] = True
+                approval["approved"] = approved
+                approval["auto_approve"] = auto_approve
+                # Snapshot data before event.set() wakes the agent thread
+                data = {k: v for k, v in approval.items() if k != "_event"}
+                event = approval.get("_event")
+                if event:
+                    event.set()
+                return data
+            return None
+
+    def get_pending_approval(self, approval_id: str) -> Optional[Dict[str, Any]]:
+        """Get a pending approval request."""
+        with self._lock:
+            return self._pending_approvals.get(approval_id)
+
+    def clear_approval(self, approval_id: str) -> None:
+        """Clear a resolved approval."""
+        with self._lock:
+            self._pending_approvals.pop(approval_id, None)
+
+    def clear_session_approvals(self, session_id: str) -> None:
+        """Clear all pending approvals for a session."""
+        with self._lock:
+            to_remove = [
+                aid
+                for aid, a in self._pending_approvals.items()
+                if a.get("session_id") == session_id
+            ]
+            for aid in to_remove:
+                approval = self._pending_approvals.pop(aid)
+                # Wake any blocked threads so they don't hang
+                if not approval.get("resolved"):
+                    approval["resolved"] = True
+                    approval["approved"] = False
+                    event = approval.get("_event")
+                    if event:
+                        event.set()
+
+    def request_interrupt(self) -> None:
+        """Request interruption of ongoing task."""
+        with self._lock:
+            self._interrupt_requested = True
+            # Wake up any threads blocked on approval waits
+            for approval in self._pending_approvals.values():
+                if not approval.get("resolved"):
+                    approval["resolved"] = True
+                    approval["approved"] = False
+                    event = approval.get("_event")
+                    if event:
+                        event.set()
+
+    def clear_interrupt(self) -> None:
+        """Clear the interrupt flag."""
+        with self._lock:
+            self._interrupt_requested = False
+
+    def is_interrupt_requested(self) -> bool:
+        """Check if interrupt has been requested."""
+        with self._lock:
+            return self._interrupt_requested
+
+    # --- Autonomy level ---
+
+    def get_autonomy_level(self) -> str:
+        """Get current autonomy level."""
+        with self._lock:
+            return self._autonomy_level
+
+    def set_autonomy_level(self, level: str) -> None:
+        """Set autonomy level."""
+        with self._lock:
+            self._autonomy_level = level
+
+    # --- Thinking level ---
+
+    def get_thinking_level(self) -> str:
+        """Get current thinking level."""
+        with self._lock:
+            return self._thinking_level
+
+    def set_thinking_level(self, level: str) -> None:
+        """Set thinking level."""
+        with self._lock:
+            self._thinking_level = level
+
+    # --- Running sessions ---
+
+    def set_session_running(self, session_id: str) -> None:
+        """Mark a session as having a running agent."""
+        with self._lock:
+            self._running_sessions[session_id] = "running"
+
+    def set_session_idle(self, session_id: str) -> None:
+        """Mark a session as idle (no running agent)."""
+        with self._lock:
+            self._running_sessions.pop(session_id, None)
+
+    def is_session_running(self, session_id: str) -> bool:
+        """Check if a session has a running agent."""
+        with self._lock:
+            return session_id in self._running_sessions
+
+    # --- Injection queues ---
+
+    def get_injection_queue(self, session_id: str) -> queue_mod.Queue[str]:
+        """Get or create the injection queue for a session."""
+        with self._lock:
+            if session_id not in self._injection_queues:
+                self._injection_queues[session_id] = queue_mod.Queue(maxsize=10)
+            return self._injection_queues[session_id]
+
+    def clear_injection_queue(self, session_id: str) -> None:
+        """Remove the injection queue for a session."""
+        with self._lock:
+            self._injection_queues.pop(session_id, None)
+
+    # --- Bridge mode ---
+
+    @property
+    def is_bridge_mode(self) -> bool:
+        """True when TUI is the execution authority and Web UI mirrors it."""
+        return self.tui_message_injector is not None
+
+    def get_event_loop(self) -> Optional[asyncio.AbstractEventLoop]:
+        """Get the event loop used by the web server."""
+        return self._event_loop
+
+    # --- Ask-user state ---
+
+    def add_pending_ask_user(
+        self,
+        request_id: str,
+        data: Dict[str, Any],
+        session_id: Optional[str] = None,
+        event: Optional[threading.Event] = None,
+    ) -> None:
+        """Add a pending ask-user request."""
+        with self._lock:
+            self._pending_ask_users[request_id] = {
+                "data": data,
+                "resolved": False,
+                "answers": None,
+                "cancelled": False,
+                "session_id": session_id,
+                "_event": event,
+            }
+
+    def resolve_ask_user(
+        self, request_id: str, answers: Optional[Dict], cancelled: bool = False
+    ) -> bool:
+        """Resolve a pending ask-user request."""
+        with self._lock:
+            if request_id in self._pending_ask_users:
+                self._pending_ask_users[request_id]["resolved"] = True
+                self._pending_ask_users[request_id]["answers"] = answers
+                self._pending_ask_users[request_id]["cancelled"] = cancelled
+                event = self._pending_ask_users[request_id].get("_event")
+                if event:
+                    event.set()
+                return True
+            return False
+
+    def get_pending_ask_user(self, request_id: str) -> Optional[Dict[str, Any]]:
+        """Get a pending ask-user request."""
+        with self._lock:
+            return self._pending_ask_users.get(request_id)
+
+    def clear_ask_user(self, request_id: str) -> None:
+        """Clear a resolved ask-user request."""
+        with self._lock:
+            self._pending_ask_users.pop(request_id, None)
+
+    # --- Plan approval state ---
+
+    def add_pending_plan_approval(
+        self,
+        request_id: str,
+        data: Dict[str, Any],
+        session_id: Optional[str] = None,
+        event: Optional[threading.Event] = None,
+    ) -> None:
+        """Add a pending plan approval request."""
+        with self._lock:
+            self._pending_plan_approvals[request_id] = {
+                "data": data,
+                "resolved": False,
+                "action": None,
+                "feedback": "",
+                "session_id": session_id,
+                "_event": event,
+            }
+
+    def resolve_plan_approval(self, request_id: str, action: str, feedback: str = "") -> bool:
+        """Resolve a pending plan approval request."""
+        with self._lock:
+            if request_id in self._pending_plan_approvals:
+                self._pending_plan_approvals[request_id]["resolved"] = True
+                self._pending_plan_approvals[request_id]["action"] = action
+                self._pending_plan_approvals[request_id]["feedback"] = feedback
+                event = self._pending_plan_approvals[request_id].get("_event")
+                if event:
+                    event.set()
+                return True
+            return False
+
+    def get_pending_plan_approval(self, request_id: str) -> Optional[Dict[str, Any]]:
+        """Get a pending plan approval request."""
+        with self._lock:
+            return self._pending_plan_approvals.get(request_id)
+
+    def clear_plan_approval(self, request_id: str) -> None:
+        """Clear a resolved plan approval request."""
+        with self._lock:
+            self._pending_plan_approvals.pop(request_id, None)
+
+    def get_git_branch(self) -> Optional[str]:
+        """Get current git branch for the working directory."""
+        import subprocess
+
+        try:
+            session = self.session_manager.get_current_session()
+            cwd = session.working_directory if session else None
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True,
+                text=True,
+                cwd=cwd,
+                timeout=3,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+
+# Global state instance (will be initialized when web server starts)
+_state: Optional[WebState] = None
+
+
+def init_state(
+    config_manager: ConfigManager,
+    session_manager: SessionManager,
+    mode_manager: ModeManager,
+    approval_manager: ApprovalManager,
+    undo_manager: UndoManager,
+    user_store: UserStore,
+    mcp_manager: Optional["MCPManager"] = None,
+) -> WebState:
+    """Initialize the global state instance."""
+    global _state
+    _state = WebState(
+        config_manager,
+        session_manager,
+        mode_manager,
+        approval_manager,
+        undo_manager,
+        user_store,
+        mcp_manager,
+    )
+    return _state
+
+
+def get_state() -> WebState:
+    """Get the global state instance."""
+    if _state is None:
+        # Auto-initialize with default managers for standalone server
+        from pathlib import Path
+        from opendev.core.runtime import ConfigManager, ModeManager
+        from opendev.core.context_engineering.history import SessionManager, UndoManager
+        from opendev.core.runtime.approval import ApprovalManager
+        from opendev.core.context_engineering.mcp.manager import MCPManager
+        from opendev.core.paths import get_paths
+        from rich.console import Console
+
+        console = Console()
+        working_dir = Path.cwd()
+        paths = get_paths(working_dir)
+
+        config_manager = ConfigManager(working_dir)
+        session_manager = SessionManager(working_dir=working_dir)
+        mode_manager = ModeManager()
+        approval_manager = ApprovalManager(console)
+        undo_manager = UndoManager(50)
+        user_store = UserStore(paths.global_dir)
+
+        # Initialize MCP manager
+        mcp_manager = MCPManager(working_dir)
+
+        # Don't create session on startup - let user create via UI
+
+        return init_state(
+            config_manager,
+            session_manager,
+            mode_manager,
+            approval_manager,
+            undo_manager,
+            user_store,
+            mcp_manager,
+        )
+    return _state
+
+
+async def broadcast_to_all_clients(message: Dict[str, Any]) -> None:
+    """Broadcast a message to all connected WebSocket clients.
+
+    Args:
+        message: Message to broadcast (will be JSON-serialized)
+    """
+    state = get_state()
+    clients = state.get_ws_clients()
+
+    import json
+
+    for client in clients:
+        try:
+            await client.send_text(json.dumps(message))
+        except Exception:
+            # Client disconnected, will be cleaned up by WebSocket handler
+            pass

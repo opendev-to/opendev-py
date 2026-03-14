@@ -28,7 +28,7 @@ class AskUserPromptController:
 
     def __init__(
         self,
-        app: "SWECLIChatApp",
+        app: "OpenDevChatApp",
         interrupt_manager: Optional["InterruptManager"] = None,
     ) -> None:
         if TYPE_CHECKING:  # pragma: no cover

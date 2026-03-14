@@ -29,7 +29,7 @@ class TextualUICallback(
 
         Args:
             conversation_log: The ConversationLog widget to display messages
-            chat_app: The main chat app (SWECLIChatApp instance) for controlling processing state
+            chat_app: The main chat app (OpenDevChatApp instance) for controlling processing state
             working_dir: Working directory for resolving relative paths in tool displays
         """
         self.conversation = conversation_log

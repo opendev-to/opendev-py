@@ -10,7 +10,7 @@ from rich.text import Text
 from opendev.ui_textual.style_tokens import GREY, BLUE_BRIGHT
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
     from opendev.ui_textual.components import TipsManager
     from opendev.core.context_engineering.tools.todo_handler import TodoHandler
 
@@ -27,7 +27,7 @@ class SpinnerController:
 
     def __init__(
         self,
-        app: "SWECLIChatApp",
+        app: "OpenDevChatApp",
         tips_manager: "TipsManager",
         todo_handler: Optional["TodoHandler"] = None,
     ) -> None:

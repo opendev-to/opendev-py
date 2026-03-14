@@ -8,14 +8,14 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
     from opendev.repl.repl import REPL
 
 
 class MCPCommandController:
     """Handle MCP-related slash commands and auto-connection."""
 
-    def __init__(self, app: "SWECLIChatApp", repl: "REPL") -> None:
+    def __init__(self, app: "OpenDevChatApp", repl: "REPL") -> None:
         """Initialize the MCP command controller.
 
         Args:

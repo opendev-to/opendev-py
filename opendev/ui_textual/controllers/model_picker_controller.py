@@ -14,7 +14,7 @@ from rich.text import Text
 from opendev.ui_textual.style_tokens import BLUE_BG_ACTIVE, BLUE_LIGHT, GREY
 
 if TYPE_CHECKING:
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
     from opendev.ui_textual.managers.interrupt_manager import InterruptManager
 
 
@@ -23,7 +23,7 @@ class ModelPickerController:
 
     def __init__(
         self,
-        app: "SWECLIChatApp",
+        app: "OpenDevChatApp",
         interrupt_manager: Optional["InterruptManager"] = None,
     ) -> None:
         self.app = app
@@ -51,8 +51,13 @@ class ModelPickerController:
         if start is not None and start >= first_affected:
             self.state["panel_start"] = start + delta
 
-    async def start(self) -> None:
-        """Begin the model picker flow."""
+    async def start(self, *, session_mode: bool = False) -> None:
+        """Begin the model picker flow.
+
+        Args:
+            session_mode: If True, selections are saved to the session overlay
+                          instead of global config.
+        """
         if self.active:
             self.app.conversation.add_system_message(
                 "Model selector already open — finish the current flow or type X to cancel."
@@ -81,6 +86,7 @@ class ModelPickerController:
             "slot_items": [],
             "slot_index": 0,
             "panel_start": None,
+            "session_mode": session_mode,
         }
 
         # Track state for interrupt handling
@@ -462,10 +468,16 @@ class ModelPickerController:
             "Use ↑/↓ or 1-5 to select a slot, Enter to configure, Esc to cancel.",
             style=f"italic {GREY}",
         )
+        session_mode = state.get("session_mode", False)
+        panel_title = (
+            "[bold]Session Model Configuration[/bold]"
+            if session_mode
+            else "[bold]Model Configuration[/bold]"
+        )
         header = Text("Select which model slot you'd like to configure.", style=BLUE_LIGHT)
         panel = Panel(
             Group(header, table, instructions),
-            title="[bold]Model Configuration[/bold]",
+            title=panel_title,
             title_align="left",
             border_style="bright_cyan",
             padding=(1, 2),
@@ -778,15 +790,22 @@ class ModelPickerController:
         Returns:
             True if saved successfully, False otherwise.
         """
-        if not self.app.on_model_selected:
+        session_mode = self.state.get("session_mode", False) if self.state else False
+        handler = (
+            self.app.on_session_model_selected if session_mode
+            else self.app.on_model_selected
+        )
+
+        if not handler:
             self.app.conversation.add_system_message("No handler available to update models.")
             return False
 
         labels = self._model_slot_labels()
         display_name = f"{provider_info.name}/{model_info.name}"
+        scope_tag = " [session]" if session_mode else ""
 
         try:
-            result = self.app.on_model_selected(slot, provider_info.id, model_info.id)
+            result = handler(slot, provider_info.id, model_info.id)
             if inspect.isawaitable(result):
                 result = await result
         except Exception as exc:  # pragma: no cover
@@ -801,7 +820,7 @@ class ModelPickerController:
             if message:
                 summary = f"{summary} — {message}"
             self.app.conversation.add_system_message(
-                f"✓ {labels.get(slot, slot.title())} model saved: {summary}"
+                f"✓ {labels.get(slot, slot.title())} model saved: {summary}{scope_tag}"
             )
 
             # Auto-populate thinking/vision slots when setting normal model
@@ -821,6 +840,14 @@ class ModelPickerController:
 
         Only populates slots that are not already set.
         """
+        session_mode = self.state.get("session_mode", False) if self.state else False
+        handler = (
+            self.app.on_session_model_selected if session_mode
+            else self.app.on_model_selected
+        )
+        if not handler:
+            return
+
         # Get current config to check if slots are set
         config_snapshot = self._get_model_config_snapshot()
         thinking_set = config_snapshot.get("thinking", {}).get("model")
@@ -832,7 +859,7 @@ class ModelPickerController:
         # Auto-populate thinking slot if model has reasoning capability AND not set
         if "reasoning" in capabilities and not thinking_set:
             try:
-                result = self.app.on_model_selected("thinking", provider_info.id, model_info.id)
+                result = handler("thinking", provider_info.id, model_info.id)
                 if inspect.isawaitable(result):
                     result = await result
                 if getattr(result, "success", None):
@@ -845,7 +872,7 @@ class ModelPickerController:
         # Auto-populate vision slot if model has vision capability AND not set
         if "vision" in capabilities and not vision_set:
             try:
-                result = self.app.on_model_selected("vision", provider_info.id, model_info.id)
+                result = handler("vision", provider_info.id, model_info.id)
                 if inspect.isawaitable(result):
                     result = await result
                 if getattr(result, "success", None):
@@ -859,7 +886,7 @@ class ModelPickerController:
         compact_set = config_snapshot.get("compact", {}).get("model")
         if not compact_set:
             try:
-                result = self.app.on_model_selected("compact", provider_info.id, model_info.id)
+                result = handler("compact", provider_info.id, model_info.id)
                 if inspect.isawaitable(result):
                     result = await result
                 if getattr(result, "success", None):

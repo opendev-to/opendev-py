@@ -10,13 +10,13 @@ from opendev.ui_textual.utils import build_tool_call_text
 from opendev.ui_textual.utils.text_utils import truncate_tool_output, summarize_error
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
 
 
 class ResponseRenderer:
     """Handle rendering of assistant responses and tool calls."""
 
-    def __init__(self, app: "SWECLIChatApp") -> None:
+    def __init__(self, app: "OpenDevChatApp") -> None:
         """Initialize the response renderer.
 
         Args:

@@ -138,17 +138,17 @@ class TestWelcomePanelSessionResumption:
 
     def test_chat_app_new_session_defaults(self):
         """New session should have welcome_visible=True by default."""
-        from opendev.ui_textual.chat_app import SWECLIChatApp
+        from opendev.ui_textual.chat_app import OpenDevChatApp
 
-        app = SWECLIChatApp(is_resumed_session=False)
+        app = OpenDevChatApp(is_resumed_session=False)
         assert app._is_resumed_session is False
         assert app._welcome_visible is True
 
     def test_chat_app_resumed_session_flags(self):
         """Resumed session should have welcome_visible=False."""
-        from opendev.ui_textual.chat_app import SWECLIChatApp
+        from opendev.ui_textual.chat_app import OpenDevChatApp
 
-        app = SWECLIChatApp(is_resumed_session=True)
+        app = OpenDevChatApp(is_resumed_session=True)
         assert app._is_resumed_session is True
         assert app._welcome_visible is False
 

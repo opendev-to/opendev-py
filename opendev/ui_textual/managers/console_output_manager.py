@@ -11,13 +11,13 @@ from rich.text import Text
 from opendev.ui_textual.utils.text_utils import is_spinner_text, is_spinner_tip, normalize_console_text
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
 
 
 class ConsoleOutputManager:
     """Manage console output rendering and bridging."""
 
-    def __init__(self, app: "SWECLIChatApp", console_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None:
+    def __init__(self, app: "OpenDevChatApp", console_queue: asyncio.Queue, loop: asyncio.AbstractEventLoop) -> None:
         """Initialize the console output manager.
 
         Args:

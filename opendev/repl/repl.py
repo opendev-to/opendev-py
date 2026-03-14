@@ -475,7 +475,7 @@ class REPL:
         # Connect to enabled MCP servers
         self._connect_mcp_servers()
 
-        # Project instructions (SWECLI.md) are now included in the system prompt
+        # Project instructions (OPENDEV.md) are now included in the system prompt
         # via EnvironmentContext, so no separate reminder is needed here.
 
         while self.running:

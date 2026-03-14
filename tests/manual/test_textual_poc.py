@@ -13,7 +13,7 @@ def test_imports():
     print("Testing imports...")
     try:
         from opendev.ui_textual.chat_app import (
-            SWECLIChatApp,
+            OpenDevChatApp,
             ConversationLog,
             StatusBar,
             create_chat_app,

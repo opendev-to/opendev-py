@@ -222,7 +222,7 @@ class TestPathsProject:
         assert paths.project_commands_dir == tmp_path / ".opendev" / "commands"
 
     def test_project_context_file(self, tmp_path):
-        """Test project context file (SWECLI.md) at project root."""
+        """Test project context file (OPENDEV.md) at project root."""
         paths = Paths(working_dir=tmp_path)
         assert paths.project_context_file == tmp_path / "OPENDEV.md"
 

@@ -1,4 +1,4 @@
-"""Codebase indexer for generating concise SWECLI.md summaries."""
+"""Codebase indexer for generating concise OPENDEV.md summaries."""
 
 from __future__ import annotations
 

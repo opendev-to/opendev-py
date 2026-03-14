@@ -141,6 +141,54 @@ class ModelConfigManager:
             self.refresh_ui_config()
         return result
 
+    async def apply_session_model_selection(
+        self, slot: str, provider_id: str, model_id: str
+    ) -> Any:
+        """Apply a model selection to the session overlay instead of global config."""
+        from types import SimpleNamespace
+
+        from opendev.core.runtime.session_model import set_session_model
+
+        session_mgr = getattr(self._repl, "session_manager", None)
+        session_model_mgr = getattr(self._repl, "session_model_manager", None)
+
+        if not session_mgr or not session_model_mgr:
+            return SimpleNamespace(success=False, message="Session manager not available")
+
+        session = session_mgr.get_current_session()
+        if not session:
+            return SimpleNamespace(success=False, message="No active session")
+
+        # Map slot name to config keys
+        slot_to_keys = {
+            "normal": ("model_provider", "model"),
+            "thinking": ("model_thinking_provider", "model_thinking"),
+            "vision": ("model_vlm_provider", "model_vlm"),
+            "critique": ("model_critique_provider", "model_critique"),
+            "compact": ("model_compact_provider", "model_compact"),
+        }
+
+        prov_key, model_key = slot_to_keys.get(slot, ("model_provider", "model"))
+
+        # Get or create overlay
+        overlay = session_model_mgr.get_overlay() or {}
+        overlay[prov_key] = provider_id
+        overlay[model_key] = model_id
+
+        # Restore old overlay, apply updated one
+        session_model_mgr.restore()
+        session_model_mgr.apply(overlay)
+
+        # Persist to session metadata
+        set_session_model(session, overlay)
+        session_mgr.save_session()
+
+        # Rebuild agents with new config
+        await asyncio.to_thread(self._repl.rebuild_agents)
+        self.refresh_ui_config()
+
+        return SimpleNamespace(success=True, message="")
+
     def _build_model_slots(
         self, snapshot: Optional[dict[str, dict[str, str]]] = None
     ) -> dict[str, tuple[str, str]]:

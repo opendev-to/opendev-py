@@ -5,13 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
 
 
 class CommandRouter:
     """Handle slash commands issued from the Textual chat input."""
 
-    def __init__(self, app: "SWECLIChatApp") -> None:
+    def __init__(self, app: "OpenDevChatApp") -> None:
         self.app = app
 
     async def handle(self, command: str) -> bool:
@@ -56,13 +56,8 @@ class CommandRouter:
             if subcmd == "clear":
                 # Clear handled via REPL fallthrough
                 return False
-            # Default: open session-model picker (like /models)
-            runner = getattr(self.app, "runner", None)
-            repl = getattr(runner, "repl", None) if runner else None
-            sm_cmds = getattr(repl, "session_model_commands", None) if repl else None
-            if sm_cmds:
-                sm_cmds.chat_app = self.app
-                await sm_cmds.show_model_selector_async()
+            # Open the model picker in session mode
+            await self.app._start_session_model_picker()
             return True
 
         if cmd == "/agents":

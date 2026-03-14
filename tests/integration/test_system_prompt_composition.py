@@ -77,7 +77,7 @@ def test_thinking_prompt_builder_composition():
 
 
 def test_system_prompt_with_project_instructions():
-    """Verify project instructions (SWECLI.md) are included when available."""
+    """Verify project instructions (OPENDEV.md) are included when available."""
     from opendev.core.agents.components.prompts.environment import EnvironmentContext
 
     env = EnvironmentContext(

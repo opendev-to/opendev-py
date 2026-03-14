@@ -20,7 +20,7 @@ from opendev.ui_textual.components.skill_creator_panels import (
 from opendev.ui_textual.managers.spinner_service import SpinnerType
 
 if TYPE_CHECKING:
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
     from opendev.ui_textual.managers.interrupt_manager import InterruptManager
 
 
@@ -81,7 +81,7 @@ class SkillCreatorController:
 
     def __init__(
         self,
-        app: "SWECLIChatApp",
+        app: "OpenDevChatApp",
         interrupt_manager: Optional["InterruptManager"] = None,
     ) -> None:
         self.app = app

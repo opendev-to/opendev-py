@@ -1,21 +1,21 @@
-"""Tests for SWECLIChatApp.call_from_thread override and call_from_thread_nonblocking."""
+"""Tests for OpenDevChatApp.call_from_thread override and call_from_thread_nonblocking."""
 
 import threading
 from unittest.mock import Mock, patch, MagicMock
 
-from opendev.ui_textual.chat_app import SWECLIChatApp
+from opendev.ui_textual.chat_app import OpenDevChatApp
 
 
-def _make_app() -> SWECLIChatApp:
-    """Create a minimal SWECLIChatApp for testing (no Textual runtime)."""
-    app = SWECLIChatApp.__new__(SWECLIChatApp)
+def _make_app() -> OpenDevChatApp:
+    """Create a minimal OpenDevChatApp for testing (no Textual runtime)."""
+    app = OpenDevChatApp.__new__(OpenDevChatApp)
     app._loop = MagicMock()
     app._thread_id = threading.get_ident()
     return app
 
 
 class TestCallFromThreadOverride:
-    """Tests for the call_from_thread override on SWECLIChatApp."""
+    """Tests for the call_from_thread override on OpenDevChatApp."""
 
     def test_ui_thread_executes_directly(self):
         """When called from the UI thread, execute callback directly."""
@@ -54,7 +54,7 @@ class TestCallFromThreadOverride:
 
 
 class TestCallFromThreadNonblocking:
-    """Tests for call_from_thread_nonblocking on SWECLIChatApp."""
+    """Tests for call_from_thread_nonblocking on OpenDevChatApp."""
 
     def test_nonblocking_ui_thread_executes_directly(self):
         """From UI thread, execute directly."""

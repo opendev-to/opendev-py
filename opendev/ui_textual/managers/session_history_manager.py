@@ -7,7 +7,7 @@ from typing import Callable, Optional, TYPE_CHECKING
 from opendev.models.message import ChatMessage, Role
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
     from opendev.core.context_engineering.history import SessionManager
 
 
@@ -16,7 +16,7 @@ class SessionHistoryManager:
 
     def __init__(
         self,
-        app: "SWECLIChatApp",
+        app: "OpenDevChatApp",
         session_manager: "SessionManager",
         render_stored_tool_calls_callback: Callable,
     ) -> None:

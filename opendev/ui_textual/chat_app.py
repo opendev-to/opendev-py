@@ -36,7 +36,7 @@ from opendev.ui_textual.managers.interrupt_manager import InterruptManager, Inte
 # Note: render_welcome_panel no longer used - replaced by AnimatedWelcomePanel widget
 
 
-class SWECLIChatApp(App):
+class OpenDevChatApp(App):
     """OpenDev Chat Application using Textual."""
 
     CSS_PATH = "styles/chat.tcss"
@@ -71,6 +71,7 @@ class SWECLIChatApp(App):
         on_cycle_mode: Optional[Callable[[], str]] = None,
         completer: Optional[Completer] = None,
         on_model_selected: Optional[Callable[[str, str, str], Any]] = None,
+        on_session_model_selected: Optional[Callable[[str, str, str], Any]] = None,
         get_model_config: Optional[Callable[[], Mapping[str, Any]]] = None,
         on_ready: Optional[Callable[[], None]] = None,
         on_interrupt: Optional[Callable[[], bool]] = None,
@@ -86,7 +87,8 @@ class SWECLIChatApp(App):
             model: Model name to display in status bar
             model_slots: Mapping of model slots (normal/thinking/vision) to human-readable values
             completer: Autocomplete provider for slash commands and @ mentions
-            on_model_selected: Callback invoked after a model is selected
+            on_model_selected: Callback invoked after a model is selected (global config)
+            on_session_model_selected: Callback invoked after a session-scoped model is selected
             get_model_config: Callback returning current model configuration details
             on_ready: Callback invoked once the UI finishes its first layout pass
             on_interrupt: Callback for when user presses ESC to interrupt
@@ -104,6 +106,7 @@ class SWECLIChatApp(App):
         self.completer = completer
         self.model_slots = dict(model_slots or {})
         self.on_model_selected = on_model_selected
+        self.on_session_model_selected = on_session_model_selected
         self.get_model_config = get_model_config
         self._on_ready = on_ready
         self.working_dir = working_dir or ""
@@ -463,6 +466,10 @@ class SWECLIChatApp(App):
     async def _start_model_picker(self) -> None:
         """Launch the in-conversation model picker flow."""
         await self._model_picker.start()
+
+    async def _start_session_model_picker(self) -> None:
+        """Launch the model picker in session mode (saves to session overlay)."""
+        await self._model_picker.start(session_mode=True)
 
     def _model_picker_move(self, delta: int) -> None:
         self._model_picker.move(delta)
@@ -1063,13 +1070,14 @@ def create_chat_app(
     on_cycle_mode: Optional[Callable[[], str]] = None,
     completer: Optional[Completer] = None,
     on_model_selected: Optional[Callable[[str, str, str], Any]] = None,
+    on_session_model_selected: Optional[Callable[[str, str, str], Any]] = None,
     get_model_config: Optional[Callable[[], Mapping[str, Any]]] = None,
     on_ready: Optional[Callable[[], None]] = None,
     on_interrupt: Optional[Callable[[], bool]] = None,
     working_dir: Optional[str] = None,
     todo_handler: Optional[Any] = None,
     is_resumed_session: bool = False,
-) -> SWECLIChatApp:
+) -> OpenDevChatApp:
     """Create and return a new chat application instance.
 
     Args:
@@ -1077,7 +1085,8 @@ def create_chat_app(
         model: Model name to display in status bar
         model_slots: Mapping of model slots to formatted provider/model names
         completer: Autocomplete provider for @ mentions and slash commands
-        on_model_selected: Callback invoked after a model is selected
+        on_model_selected: Callback invoked after a model is selected (global config)
+        on_session_model_selected: Callback invoked after a session-scoped model is selected
         get_model_config: Callback returning current model configuration details
         on_ready: Callback invoked once the UI completes its first render pass
         on_interrupt: Callback for when user presses ESC to interrupt
@@ -1086,15 +1095,16 @@ def create_chat_app(
         is_resumed_session: If True, skip the welcome panel (resuming existing session)
 
     Returns:
-        Configured SWECLIChatApp instance
+        Configured OpenDevChatApp instance
     """
-    return SWECLIChatApp(
+    return OpenDevChatApp(
         on_message=on_message,
         model=model,
         model_slots=model_slots,
         on_cycle_mode=on_cycle_mode,
         completer=completer,
         on_model_selected=on_model_selected,
+        on_session_model_selected=on_session_model_selected,
         get_model_config=get_model_config,
         on_ready=on_ready,
         on_interrupt=on_interrupt,

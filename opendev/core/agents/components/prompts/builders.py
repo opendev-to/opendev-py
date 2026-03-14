@@ -218,7 +218,7 @@ You are currently working in the directory: `{self._working_dir}`
 When processing file paths without explicit directories (like `app.py` or `README.md`), assume they are located in the current working directory unless the user provides a specific path. Use relative paths from the working directory for file operations."""
 
     def _build_project_instructions(self) -> str:
-        """Build project instructions section from SWECLI.md content."""
+        """Build project instructions section from OPENDEV.md content."""
         if self._env_context:
             from .environment import build_project_instructions_block
 
@@ -342,7 +342,7 @@ class PlanningPromptBuilder:
         )
 
     def _build_project_instructions(self) -> str:
-        """Build project instructions section from SWECLI.md content."""
+        """Build project instructions section from OPENDEV.md content."""
         if self._env_context:
             from .environment import build_project_instructions_block
 

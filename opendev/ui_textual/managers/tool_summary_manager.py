@@ -10,7 +10,7 @@ from opendev.ui_textual.utils.tool_display import get_tool_display_parts, summar
 class ToolSummaryManager:
     """Handles tool summary recording and inline follow-up messages."""
 
-    def __init__(self, app: "SWECLIChatApp") -> None:
+    def __init__(self, app: "OpenDevChatApp") -> None:
         if TYPE_CHECKING:  # pragma: no cover
             pass
         self.app = app

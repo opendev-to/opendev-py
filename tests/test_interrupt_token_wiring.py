@@ -121,7 +121,7 @@ class TestFix2ActionInterruptSignalsToken:
     """Verify action_interrupt cancels controllers AND signals token."""
 
     def _make_app(self):
-        """Create a minimal mock SWECLIChatApp."""
+        """Create a minimal mock OpenDevChatApp."""
         app = Mock()
         app._is_processing = True
         app.on_interrupt = Mock()
@@ -155,9 +155,9 @@ class TestFix2ActionInterruptSignalsToken:
         manager.register_controller(controller)
 
         # Import and call the actual method
-        from opendev.ui_textual.chat_app import SWECLIChatApp
+        from opendev.ui_textual.chat_app import OpenDevChatApp
 
-        SWECLIChatApp.action_interrupt(app)
+        OpenDevChatApp.action_interrupt(app)
 
         # Both should be called
         controller.cancel.assert_called_once()
@@ -171,10 +171,10 @@ class TestFix2ActionInterruptSignalsToken:
         token = InterruptToken()
         manager.set_interrupt_token(token)
 
-        from opendev.ui_textual.chat_app import SWECLIChatApp
+        from opendev.ui_textual.chat_app import OpenDevChatApp
 
-        SWECLIChatApp.action_interrupt(app)
-        SWECLIChatApp._show_interrupt_feedback(app)
+        OpenDevChatApp.action_interrupt(app)
+        OpenDevChatApp._show_interrupt_feedback(app)
 
         app.spinner_service.stop_all.assert_called_with(immediate=True)
 
@@ -186,9 +186,9 @@ class TestFix2ActionInterruptSignalsToken:
         # Patch handle_interrupt to track calls
         manager.handle_interrupt = Mock(return_value=False)
 
-        from opendev.ui_textual.chat_app import SWECLIChatApp
+        from opendev.ui_textual.chat_app import OpenDevChatApp
 
-        SWECLIChatApp.action_interrupt(app)
+        OpenDevChatApp.action_interrupt(app)
 
         manager.handle_interrupt.assert_called_once()
         # request_run_interrupt should NOT be called

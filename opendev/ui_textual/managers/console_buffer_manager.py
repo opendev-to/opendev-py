@@ -11,7 +11,7 @@ from rich.text import Text
 class ConsoleBufferManager:
     """Handles buffering and suppression of console output duplicates."""
 
-    def __init__(self, app: "SWECLIChatApp") -> None:
+    def __init__(self, app: "OpenDevChatApp") -> None:
         from typing import TYPE_CHECKING
         if TYPE_CHECKING:  # pragma: no cover
             pass

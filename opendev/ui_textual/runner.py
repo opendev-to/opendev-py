@@ -394,6 +394,7 @@ class TextualRunner:
             "on_cycle_mode": self._cycle_mode,
             "completer": getattr(self.repl, "completer", None),
             "on_model_selected": self.model_config_manager.apply_model_selection,
+            "on_session_model_selected": self.model_config_manager.apply_session_model_selection,
             "get_model_config": self.model_config_manager.get_model_config_snapshot,
             "on_interrupt": self._handle_interrupt,
             "working_dir": str(self.working_dir),

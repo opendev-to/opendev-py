@@ -4,12 +4,12 @@ from types import SimpleNamespace
 import pytest
 from rich.text import Text
 
-from opendev.ui_textual.chat_app import SWECLIChatApp
+from opendev.ui_textual.chat_app import OpenDevChatApp
 from opendev.ui_textual.managers.console_buffer_manager import ConsoleBufferManager
 
 
-def make_app() -> SWECLIChatApp:
-    app = SWECLIChatApp.__new__(SWECLIChatApp)
+def make_app() -> OpenDevChatApp:
+    app = OpenDevChatApp.__new__(OpenDevChatApp)
     app._queued_console_renderables = []
     app._spinner_active = False
     app._buffer_console_output = False

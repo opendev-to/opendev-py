@@ -6,7 +6,7 @@ import logging
 from typing import Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from opendev.ui_textual.chat_app import SWECLIChatApp
+    from opendev.ui_textual.chat_app import OpenDevChatApp
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class MessageController:
     """Coordinate chat message submission and backend processing."""
 
-    def __init__(self, app: "SWECLIChatApp") -> None:
+    def __init__(self, app: "OpenDevChatApp") -> None:
         self.app = app
 
     async def submit(self, raw_text: str) -> None:

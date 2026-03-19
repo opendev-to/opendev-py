@@ -49,6 +49,14 @@ class HttpResult:
 class AgentHttpClient:
     """Thin wrapper around httpx with interrupt support and retry logic."""
 
+    def build_temperature_param(self, model_id: str, temperature: float) -> dict:
+        from opendev.core.agents.components.api.configuration import build_temperature_param
+        return build_temperature_param(model_id, temperature)
+
+    def build_max_tokens_param(self, model_id: str, max_tokens: int) -> dict:
+        from opendev.core.agents.components.api.configuration import build_max_tokens_param
+        return build_max_tokens_param(model_id, max_tokens)
+
     TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
 
     def __init__(self, api_url: str, headers: dict[str, str]) -> None:
